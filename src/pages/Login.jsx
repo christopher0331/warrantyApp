@@ -1,6 +1,8 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
+import { motion } from 'framer-motion'
+import { supabase } from '../lib/supabase'
 
 export default function Login() {
   const [email, setEmail] = useState('')
@@ -8,6 +10,9 @@ export default function Login() {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [isSignUp, setIsSignUp] = useState(false)
+  const [isCustomerSignUp, setIsCustomerSignUp] = useState(false)
+  const [checkingEmail, setCheckingEmail] = useState(false)
+  const [customerExists, setCustomerExists] = useState(null)
   const navigate = useNavigate()
   const location = useLocation()
   const { signIn, signUp } = useAuth()
@@ -18,6 +23,68 @@ export default function Login() {
   const validateEmployeeEmail = (email) => {
     return email.endsWith('@greenviewsolutions.net') || email.endsWith('@gvsco.net')
   }
+  
+  // Check if a customer with this email exists in the system
+  const checkCustomerEmail = async (email) => {
+    if (!email) return
+    
+    setCheckingEmail(true)
+    setError('')
+    
+    try {
+      // First check customer_invites table
+      const { data: inviteData, error: inviteError } = await supabase
+        .from('customer_invites')
+        .select('email, status')
+        .eq('email', email)
+        .single()
+      
+      if (inviteError && inviteError.code !== 'PGRST116') { // PGRST116 is "no rows returned"
+        console.error('Error checking customer invites:', inviteError)
+      }
+      
+      // If customer invite exists and is pending, they can sign up
+      if (inviteData && inviteData.status === 'pending') {
+        setCustomerExists(true)
+        return
+      }
+      
+      // Then check customers table
+      const { data: customerData, error: customerError } = await supabase
+        .from('customers')
+        .select('email')
+        .eq('email', email)
+        .single()
+      
+      if (customerError && customerError.code !== 'PGRST116') {
+        console.error('Error checking customers:', customerError)
+      }
+      
+      // If customer exists in the customers table
+      if (customerData) {
+        setCustomerExists(true)
+        return
+      }
+      
+      // No customer found with this email
+      setCustomerExists(false)
+    } catch (error) {
+      console.error('Error checking customer email:', error)
+    } finally {
+      setCheckingEmail(false)
+    }
+  }
+  
+  // Check customer email when it changes in customer signup mode
+  useEffect(() => {
+    if (isCustomerSignUp && email) {
+      const delayDebounceFn = setTimeout(() => {
+        checkCustomerEmail(email)
+      }, 500)
+      
+      return () => clearTimeout(delayDebounceFn)
+    }
+  }, [email, isCustomerSignUp])
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -26,10 +93,11 @@ export default function Login() {
       setError('')
       setLoading(true)
 
-      if (isSignUp) {
+      // Handle employee sign up
+      if (isSignUp && !isCustomerSignUp) {
         // Validate employee email domain for sign up
         if (!validateEmployeeEmail(email)) {
-          throw new Error('Only @greenviewsolutions.net or @gvsco.net email addresses can sign up')
+          throw new Error('Only @greenviewsolutions.net or @gvsco.net email addresses can sign up as employees')
         }
         
         const { error: signUpError } = await signUp({ 
@@ -38,6 +106,30 @@ export default function Login() {
           options: {
             data: {
               role: 'employee'
+            }
+          }
+        })
+        if (signUpError) throw signUpError
+        
+        setError('Please check your email for verification link')
+        return
+      }
+      
+      // Handle customer sign up
+      if (isCustomerSignUp) {
+        // Check if customer exists in the system
+        await checkCustomerEmail(email)
+        
+        if (!customerExists) {
+          throw new Error('Your email is not in our system. Please contact GreenView Solutions to create an account.')
+        }
+        
+        const { error: signUpError } = await signUp({ 
+          email, 
+          password,
+          options: {
+            data: {
+              role: 'customer'
             }
           }
         })
@@ -65,38 +157,130 @@ export default function Login() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-green-50 flex flex-col justify-center py-12 px-4 sm:px-6 lg:px-8">
       <div className="sm:mx-auto sm:w-full sm:max-w-md">
-        <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
-          {isSignUp ? 'Create Employee Account' : 'Sign in to GreenView Solutions'}
-        </h2>
+        <motion.div 
+          initial={{ y: -20, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          transition={{ duration: 0.5 }}
+          className="flex justify-center"
+        >
+          <div className="w-20 h-20 rounded-full bg-gradient-to-r from-green-400 to-blue-500 flex items-center justify-center shadow-lg">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+            </svg>
+          </div>
+        </motion.div>
+        <motion.h2 
+          initial={{ y: -10, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          transition={{ duration: 0.5, delay: 0.1 }}
+          className="mt-6 text-center text-3xl font-extrabold bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-green-600"
+        >
+          {isCustomerSignUp 
+            ? 'Create Customer Account' 
+            : (isSignUp ? 'Create Employee Account' : 'Welcome Back')}
+        </motion.h2>
+        <motion.p 
+          initial={{ y: -10, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          transition={{ duration: 0.5, delay: 0.2 }}
+          className="mt-2 text-center text-lg text-gray-600 font-medium"
+        >
+          {isCustomerSignUp 
+            ? 'Access your GreenView Solutions account' 
+            : (isSignUp ? 'Join the GreenView Solutions team' : 'Sign in to GreenView Solutions')}
+        </motion.p>
         {!isSignUp && (
-          <p className="mt-2 text-center text-sm text-gray-600">
-            Employees can sign up with their @greenviewsolutions.net or @gvsco.net email
-          </p>
+          <motion.p 
+            initial={{ y: -10, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            transition={{ duration: 0.5, delay: 0.3 }}
+            className="mt-2 text-center text-sm text-gray-500"
+          >
+            {isCustomerSignUp 
+              ? 'Customers must have a valid invitation to sign up' 
+              : 'Employees can sign up with their @greenviewsolutions.net or @gvsco.net email'}
+          </motion.p>
         )}
       </div>
 
-      <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
-        <div className="bg-white py-8 px-4 shadow sm:rounded-lg sm:px-10">
+      <motion.div 
+        initial={{ y: 20, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        transition={{ duration: 0.5, delay: 0.4 }}
+        className="mt-8 sm:mx-auto sm:w-full sm:max-w-md"
+      >
+        <div className="bg-white py-8 px-4 shadow-2xl sm:rounded-xl sm:px-10 border border-gray-100">
           {message && (
-            <div className="mb-4 bg-green-50 border border-green-400 text-green-700 px-4 py-3 rounded">
-              {message}
+            <div className="mb-6 bg-green-50 border-l-4 border-green-400 text-green-700 p-4 rounded-md">
+              <div className="flex">
+                <div className="flex-shrink-0">
+                  <svg className="h-5 w-5 text-green-400" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                  </svg>
+                </div>
+                <div className="ml-3">
+                  <p className="text-sm font-medium">{message}</p>
+                </div>
+              </div>
             </div>
           )}
           
           <form className="space-y-6" onSubmit={handleSubmit}>
             {error && (
-              <div className="bg-red-50 border border-red-400 text-red-700 px-4 py-3 rounded">
-                {error}
+              <div className="mb-6 bg-red-50 border-l-4 border-red-400 text-red-700 p-4 rounded-md">
+                <div className="flex">
+                  <div className="flex-shrink-0">
+                    <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                    </svg>
+                  </div>
+                  <div className="ml-3">
+                    <p className="text-sm font-medium">{error}</p>
+                  </div>
+                </div>
               </div>
             )}
             
             <div>
-              <label htmlFor="email" className="block text-sm font-medium text-gray-700">
-                Email address
-              </label>
-              <div className="mt-1">
+              <div className="flex justify-between items-center mb-1">
+                <label htmlFor="email" className="block text-sm font-medium text-gray-700">
+                  Email address
+                </label>
+                {isCustomerSignUp && checkingEmail && (
+                  <span className="text-xs text-blue-500 flex items-center">
+                    <svg className="animate-spin -ml-1 mr-2 h-3 w-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Checking email...
+                  </span>
+                )}
+                {isCustomerSignUp && !checkingEmail && customerExists === true && (
+                  <span className="text-xs text-green-500 flex items-center">
+                    <svg className="h-3 w-3 mr-1" viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                    </svg>
+                    Account eligible
+                  </span>
+                )}
+                {isCustomerSignUp && !checkingEmail && customerExists === false && email && (
+                  <span className="text-xs text-red-500 flex items-center">
+                    <svg className="h-3 w-3 mr-1" viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                    </svg>
+                    Not found
+                  </span>
+                )}
+              </div>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <svg className="h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                    <path d="M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884z" />
+                    <path d="M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z" />
+                  </svg>
+                </div>
                 <input
                   id="email"
                   name="email"
@@ -105,16 +289,22 @@ export default function Login() {
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-gvs-primary focus:border-gvs-primary"
+                  placeholder="you@example.com"
+                  className="appearance-none block w-full pl-10 pr-3 py-3 border border-gray-200 rounded-lg text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 bg-gray-50 placeholder-gray-400"
                 />
               </div>
             </div>
 
             <div>
-              <label htmlFor="password" className="block text-sm font-medium text-gray-700">
+              <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
                 Password
               </label>
-              <div className="mt-1">
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <svg className="h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
+                  </svg>
+                </div>
                 <input
                   id="password"
                   name="password"
@@ -123,48 +313,88 @@ export default function Login() {
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-gvs-primary focus:border-gvs-primary"
+                  placeholder={isSignUp ? 'Create a secure password' : 'Enter your password'}
+                  className="appearance-none block w-full pl-10 pr-3 py-3 border border-gray-200 rounded-lg text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 bg-gray-50 placeholder-gray-400"
                 />
               </div>
             </div>
 
             <div>
-              <button
+              <motion.button
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
                 type="submit"
                 disabled={loading}
-                className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-gvs-primary hover:bg-gvs-primary focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gvs-primary disabled:opacity-50"
+                className="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-md text-white bg-gradient-to-r from-blue-500 to-green-500 hover:from-blue-600 hover:to-green-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 transition-all duration-200 font-medium text-sm"
               >
-                {loading ? (isSignUp ? 'Signing up...' : 'Signing in...') : (isSignUp ? 'Sign up' : 'Sign in')}
-              </button>
+                {loading ? (
+                  <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                ) : null}
+                {loading 
+                  ? (isSignUp || isCustomerSignUp ? 'Creating account...' : 'Signing in...') 
+                  : (isCustomerSignUp ? 'Create Customer Account' : (isSignUp ? 'Create Employee Account' : 'Sign in'))}
+              </motion.button>
             </div>
           </form>
 
-          <div className="mt-6">
+          <div className="mt-8">
             <div className="relative">
               <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-gray-300" />
+                <div className="w-full border-t border-gray-200" />
               </div>
               <div className="relative flex justify-center text-sm">
-                <span className="px-2 bg-white text-gray-500">
-                  {isSignUp ? 'Already have an account?' : 'Need an employee account?'}
+                <span className="px-4 bg-white text-gray-500 font-medium">
+                  {isCustomerSignUp 
+                    ? 'Already have an account?' 
+                    : (isSignUp ? 'Already have an account?' : 'Need an account?')}
                 </span>
               </div>
             </div>
 
-            <div className="mt-6">
-              <button
+            <div className="mt-6 space-y-3">
+              <motion.button
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
                 onClick={() => {
-                  setIsSignUp(!isSignUp)
+                  if (isCustomerSignUp || isSignUp) {
+                    // Go back to sign in
+                    setIsSignUp(false)
+                    setIsCustomerSignUp(false)
+                  } else {
+                    // Go to employee sign up
+                    setIsSignUp(true)
+                    setIsCustomerSignUp(false)
+                  }
                   setError('')
+                  setCustomerExists(null)
                 }}
-                className="w-full inline-flex justify-center py-2 px-4 border border-gray-300 rounded-md shadow-sm bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gvs-primary"
+                className="w-full inline-flex justify-center py-3 px-4 border border-gray-200 rounded-lg shadow-sm bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all duration-200"
               >
-                {isSignUp ? 'Sign in instead' : 'Sign up as employee'}
-              </button>
+                {isCustomerSignUp || isSignUp ? 'Sign in instead' : 'Sign up as employee'}
+              </motion.button>
+              
+              {!isSignUp && !isCustomerSignUp && (
+                <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={() => {
+                    setIsCustomerSignUp(true)
+                    setIsSignUp(false)
+                    setError('')
+                    setCustomerExists(null)
+                  }}
+                  className="w-full inline-flex justify-center py-3 px-4 border border-gray-200 rounded-lg shadow-sm bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all duration-200"
+                >
+                  Sign up as customer
+                </motion.button>
+              )}
             </div>
           </div>
         </div>
-      </div>
+      </motion.div>
     </div>
   )
 }
