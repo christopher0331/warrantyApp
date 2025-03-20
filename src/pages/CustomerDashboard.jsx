@@ -3,6 +3,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { supabase } from '../lib/supabase'
 import { useNavigate } from 'react-router-dom'
 import ScheduleServiceModal from '../components/ScheduleServiceModal';
+import CustomerProfileCheck from '../components/CustomerProfileCheck';
 
 export default function CustomerDashboard() {
   const { user, signOut } = useAuth()
@@ -94,8 +95,30 @@ export default function CustomerDashboard() {
   // Schedule new service
   const handleScheduleService = async (serviceData) => {
     try {
+      // First, ensure customer record exists by calling the Edge Function
+      const { data: customerResponse, error: customerFunctionError } = await supabase.functions
+        .invoke('create-customer-record', {
+          body: { userId: user.id }
+        });
+
+      if (customerFunctionError) {
+        console.error('Error ensuring customer record exists:', customerFunctionError);
+        throw new Error('Failed to verify customer record. Please try again.');
+      }
+
+      // Now fetch the customer record which should exist
+      const { data: customerData, error: customerError } = await supabase
+        .from('customers')
+        .select('id')
+        .eq('user_id', user.id)
+        .single();
+
+      if (customerError || !customerData) {
+        throw new Error('Customer record not found. Please contact support.');
+      }
+
       const newService = {
-        customer_id: user.id,
+        customer_id: customerData.id, // Use the customer ID from the customers table
         service_type: serviceData.type,
         scheduled_date: serviceData.date,
         preferred_time: serviceData.preferredTime,
@@ -245,6 +268,7 @@ export default function CustomerDashboard() {
 
   return (
     <div className="w-screen min-h-screen bg-gray-100">
+      <CustomerProfileCheck />
       <nav className="w-screen bg-white shadow-sm">
         <div className="w-screen px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between h-16">

@@ -4,6 +4,7 @@ import Login from './pages/Login'
 import EmployeeDashboard from './pages/EmployeeDashboard'
 import CustomerDashboard from './pages/CustomerDashboard'
 import SetPassword from './pages/SetPassword'
+import MagicLinkHandler from './pages/MagicLinkHandler'
 
 const PrivateRoute = ({ children, requireEmployee = false }) => {
   const { user } = useAuth()
@@ -37,6 +38,8 @@ function App() {
           <Routes>
             <Route path="/login" element={<Login />} />
             <Route path="/set-password" element={<SetPassword />} />
+            {/* Add the magic link handler route */}
+            <Route path="/auth/callback" element={<MagicLinkHandler />} />
             <Route
               path="/employee-dashboard/*"
               element={

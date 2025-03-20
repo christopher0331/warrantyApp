@@ -1,0 +1,18 @@
+{
+  "compilerOptions": {
+    "allowJs": true,
+    "lib": ["deno.window"],
+    "strict": true
+  },
+  "importMap": "./import_map.json",
+  "lint": {
+    "include": ["**/*.ts"]
+  },
+  "fmt": {
+    "include": ["**/*.ts"],
+    "indentWidth": 2,
+    "lineWidth": 100,
+    "semiColons": false,
+    "singleQuote": true
+  }
+}
