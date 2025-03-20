@@ -2,7 +2,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 import Login from './pages/Login'
 import EmployeeDashboard from './pages/EmployeeDashboard'
-import CustomerDashboard from './pages/CustomerDashboard'
+import CustomerDashboard from './pages/CustomerDashboard/index'
 import SetPassword from './pages/SetPassword'
 import MagicLinkHandler from './pages/MagicLinkHandler'
 

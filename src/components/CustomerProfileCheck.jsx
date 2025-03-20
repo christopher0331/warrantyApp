@@ -13,11 +13,12 @@ const CustomerProfileCheck = () => {
       if (!user) return;
       
       try {
-        // Check if customer record exists
+        console.log('Checking customer profile for email:', user.email);
+        // Check if customer record exists by email (more reliable)
         const { data, error } = await supabase
           .from('customers')
-          .select('id')
-          .eq('user_id', user.id)
+          .select('*')
+          .eq('email', user.email)
           .single();
           
         if (error && error.code !== 'PGRST116') { // PGRST116 is "no rows returned"
@@ -35,17 +36,33 @@ const CustomerProfileCheck = () => {
         setIsCreating(true);
         setError(null);
         
+        // Create customer record with correct schema
+        // Let Supabase handle created_at with default value
+        // Let's check what columns are available in the customers table
+        const { data: tableInfo, error: tableError } = await supabase
+          .from('customers')
+          .select('*')
+          .limit(1);
+          
+        if (tableError) {
+          console.error('Error getting table info:', tableError);
+        } else {
+          console.log('Customers table columns:', tableInfo.length > 0 ? Object.keys(tableInfo[0]) : 'No records found');
+        }
+        
+        // Create customer record with correct schema
+        const customerRecord = {
+          email: user.email,
+          user_id: user.id, // Try user_id instead of auth_id
+          first_name: user.user_metadata?.first_name || '',
+          last_name: user.user_metadata?.last_name || '',
+        };
+        
+        console.log('Creating customer with data:', customerRecord);
+        
         const { data: newCustomer, error: createError } = await supabase
           .from('customers')
-          .insert([
-            {
-              user_id: user.id,
-              email: user.email,
-              first_name: user.user_metadata?.first_name || '',
-              last_name: user.user_metadata?.last_name || '',
-              created_at: new Date().toISOString()
-            }
-          ])
+          .insert([customerRecord])
           .select();
           
         if (createError) {
