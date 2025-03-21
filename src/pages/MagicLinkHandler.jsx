@@ -120,7 +120,7 @@ export default function MagicLinkHandler() {
           console.log('Magic link login detected, redirecting to password setup');
           
           // Check if this user came from a customer invite
-          const { data: inviteData } = await supabaseClient
+          const { data: inviteData } = await supabase
             .from('customer_invites')
             .select('*')
             .eq('email', userEmail)
@@ -130,7 +130,7 @@ export default function MagicLinkHandler() {
           if (inviteData) {
             console.log('Customer invite found, marking as completed');
             // Update the invite status to completed
-            await supabaseClient
+            await supabase
               .from('customer_invites')
               .update({ status: 'completed' })
               .eq('email', userEmail);
