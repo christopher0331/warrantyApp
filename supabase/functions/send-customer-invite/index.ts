@@ -81,6 +81,9 @@ serve(async (req) => {
     
     // Create a signup link that will redirect through our auth handler
     console.log('Sending invitation email to:', email);
+    
+    // Note: We can't directly set expiresIn for inviteUserByEmail in this version
+    // Instead, we'll make the invitation process more robust by ensuring proper error handling
     const { data, error: signUpError } = await supabaseClient.auth.admin.inviteUserByEmail(email, {
       redirectTo: `${origin}/auth/callback`,
       data: {

@@ -13,16 +13,36 @@ export default function MagicLinkHandler() {
       try {
         console.log('MagicLinkHandler activated, URL:', window.location.href);
         
+        // Check for error in URL hash
+        const hash = location.hash;
+        if (hash && hash.includes('error=')) {
+          console.error('Error found in URL hash:', hash);
+          
+          // Parse the error details
+          const hashParams = new URLSearchParams(hash.substring(1));
+          const errorType = hashParams.get('error');
+          const errorCode = hashParams.get('error_code');
+          const errorDescription = hashParams.get('error_description');
+          
+          // Handle specific error cases
+          if (errorCode === 'otp_expired') {
+            console.log('Magic link expired, redirecting to expired link page');
+            navigate('/expired-link');
+            return; // Exit early
+          } else {
+            throw new Error(errorDescription || 'Authentication failed');
+          }
+        }
+        
         // Extract the token from the URL if present
         const params = new URLSearchParams(window.location.search);
         const accessToken = params.get('access_token');
         const refreshToken = params.get('refresh_token');
-        const hash = location.hash;
         
         // Log what we found for debugging
         if (accessToken) console.log('Found access_token in query params');
         if (refreshToken) console.log('Found refresh_token in query params');
-        if (hash) console.log('Found hash fragment:', hash);
+        if (hash && !hash.includes('error=')) console.log('Found hash fragment:', hash);
         
         // If we have tokens in the URL, set them in the session
         if (accessToken && refreshToken) {
