@@ -115,28 +115,35 @@ export default function MagicLinkHandler() {
             expiresAt: Math.floor(Date.now() / 1000) + 3600
           }));
           
-          // Check if the user has a password set
-          // If they signed in with a magic link and don't have a password,
-          // we should redirect them to set a password
-          const user = userData.user;
-          const hasPassword = user.identities?.some(identity => 
-            identity.provider === 'email' && identity.identity_data?.email_verified === true
-          );
+          // Force redirect to password setup for all magic link logins
+          // This ensures users always set a password after using a magic link
+          console.log('Magic link login detected, redirecting to password setup');
           
-          const isFirstLogin = !user.last_sign_in_at || 
-            (new Date(user.last_sign_in_at).getTime() === new Date(user.created_at).getTime());
+          // Check if this user came from a customer invite
+          const { data: inviteData } = await supabaseClient
+            .from('customer_invites')
+            .select('*')
+            .eq('email', userEmail)
+            .eq('status', 'pending')
+            .single();
           
-          console.log('User has password:', hasPassword, 'Is first login:', isFirstLogin);
-          
-          // If this is the first login via magic link, redirect to set password
-          if (isFirstLogin) {
-            console.log('First login detected, redirecting to set password');
-            // Store the intended destination after password setup
-            localStorage.setItem('redirectAfterPasswordSetup', 
-              isEmployee ? '/employee-dashboard' : '/customer-dashboard');
-            navigate('/set-password');
-            return;
+          if (inviteData) {
+            console.log('Customer invite found, marking as completed');
+            // Update the invite status to completed
+            await supabaseClient
+              .from('customer_invites')
+              .update({ status: 'completed' })
+              .eq('email', userEmail);
           }
+          
+          // Store the intended destination after password setup
+          localStorage.setItem('redirectAfterPasswordSetup', 
+            isEmployee ? '/employee-dashboard' : '/customer-dashboard');
+            
+          // Redirect to password setup
+          console.log('Redirecting to password setup page');
+          navigate('/set-password');
+          return;
         }
         
         console.log('Redirecting to', isEmployee ? 'employee dashboard' : 'customer dashboard');
