@@ -10,11 +10,11 @@ const MaintenanceSchedule = () => {
       status: 'Upcoming', 
       months: 10,
       details: [
-        'Full inspection of all fence posts and panels',
+        'Application of clear coat or stain to maintain protection',
+        'Inspection of all fence posts and panels',
         'Hardware check and tightening',
-        'Cleaning of any debris or vegetation',
-        'Treatment for weather protection',
-        'Replacement of any damaged components'
+        'Replacement of any damaged components',
+        'Treatment for weather protection'
       ]
     },
     { 
@@ -22,9 +22,9 @@ const MaintenanceSchedule = () => {
       status: 'Upcoming', 
       months: 34,
       details: [
+        'Application of clear coat or stain to maintain protection',
         'Comprehensive structural assessment',
         'Deep cleaning of all surfaces',
-        'Application of protective sealant',
         'Gate alignment and adjustment',
         'Replacement of worn hardware'
       ]
@@ -34,11 +34,11 @@ const MaintenanceSchedule = () => {
       status: 'Upcoming', 
       months: 58,
       details: [
+        'Application of clear coat or stain to maintain protection',
         'Complete system evaluation',
         'Professional power washing',
-        'Premium weather-proofing treatment',
         'Security feature inspection',
-        'Aesthetic enhancement options'
+        'Premium weather-proofing treatment'
       ]
     }
   ];
@@ -62,7 +62,7 @@ const MaintenanceSchedule = () => {
         </div>
         <div className="ml-4">
           <h2 className="text-2xl font-bold text-gray-900">Maintenance Schedule</h2>
-          <p className="text-gray-600 text-sm mt-1">Regular maintenance keeps your warranty valid</p>
+          <p className="text-gray-600 text-sm mt-1">Regular maintenance at discounted rates keeps your warranty valid</p>
         </div>
       </div>
 
@@ -136,6 +136,10 @@ const MaintenanceSchedule = () => {
             
             <div className="mb-6">
               <h4 className="text-lg font-semibold text-gray-900 mb-3">Maintenance Details</h4>
+              <p className="text-gray-700 mb-3">
+                These maintenance services are offered at a discounted rate to keep your warranty valid. 
+                The primary focus is applying clear coat or stain every 2 years.
+              </p>
               <ul className="space-y-3">
                 {selectedWindow.details.map((detail, idx) => (
                   <li key={idx} className="flex items-start">

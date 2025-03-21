@@ -15,6 +15,7 @@ import ServiceList from '../../components/customer-dashboard/ServiceList';
 import ServiceManager from '../../components/customer-dashboard/ServiceManager';
 import ServiceScheduler from '../../components/customer-dashboard/ServiceScheduler';
 import WelcomeMessage from '../../components/customer-dashboard/WelcomeMessage';
+import WarrantyAgreement from '../../components/customer-dashboard/WarrantyAgreement';
 
 export default function CustomerDashboard() {
   const { user, signOut } = useAuth()
@@ -227,6 +228,11 @@ export default function CustomerDashboard() {
 
             {/* Additional Services */}
             <AdditionalServices />
+            
+            {/* Warranty Agreement - Full width */}
+            <div className="col-span-1 sm:col-span-2 lg:col-span-2 mt-6">
+              <WarrantyAgreement customerData={customerData} />
+            </div>
 
             {/* Schedule Service Button */}
             <div className="col-span-1 sm:col-span-2 lg:col-span-2">
