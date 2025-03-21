@@ -102,6 +102,7 @@ export default function EmployeeDashboard() {
       if (insertError) throw insertError
 
       // Send invitation email
+      console.log('Sending invitation to:', formData.email);
       const response = await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-customer-invite`,
         {
@@ -118,9 +119,11 @@ export default function EmployeeDashboard() {
         }
       )
 
+      const responseData = await response.json();
+      console.log('Invitation response:', responseData);
+      
       if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.message || 'Failed to send invitation')
+        throw new Error(responseData.error || 'Failed to send invitation')
       }
 
       // Reset form and refresh customers list

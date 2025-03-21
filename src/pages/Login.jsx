@@ -34,24 +34,12 @@ export default function Login() {
     setError('')
     
     try {
-      // First check auth.users table using the getUser function
-      // This is more reliable than directly querying tables
-      const { data: userData, error: userError } = await supabase.auth.admin.getUserByEmail(email)
-      
-      if (!userError && userData) {
-        // User exists in auth system, check if they have customer role
-        if (userData.user_metadata?.role === 'customer') {
-          setCustomerExists(true)
-          return
-        }
-      }
-      
-      // As a fallback, check if they're in the customer_invites table
-      // Use proper headers and format
+      // Check if they're in the customer_invites table with status 'pending'
       const { data: inviteData, error: inviteError } = await supabase
         .from('customer_invites')
         .select('*')
         .eq('email', email)
+        .eq('status', 'pending')
         .maybeSingle()
       
       if (inviteError) {
@@ -64,7 +52,7 @@ export default function Login() {
         return
       }
       
-      // Then check customers table as a final fallback
+      // Then check customers table
       const { data: customerData, error: customerError } = await supabase
         .from('customers')
         .select('*')
@@ -115,6 +103,7 @@ export default function Login() {
     try {
       setError('')
       setLoading(true)
+      console.log('Form submission type:', isSignUp ? (isCustomerSignUp ? 'Customer Signup' : 'Employee Signup') : 'Sign In')
 
       // Handle employee sign up
       if (isSignUp && !isCustomerSignUp) {
@@ -123,7 +112,8 @@ export default function Login() {
           throw new Error('Only @greenviewsolutions.net or @gvsco.net email addresses can sign up as employees')
         }
         
-        const { error: signUpError } = await signUp({ 
+        console.log('Attempting employee signup for:', email)
+        const { data: signUpData, error: signUpError } = await signUp({ 
           email, 
           password,
           options: {
@@ -132,8 +122,13 @@ export default function Login() {
             }
           }
         })
-        if (signUpError) throw signUpError
         
+        if (signUpError) {
+          console.error('Employee signup error:', signUpError)
+          throw signUpError
+        }
+        
+        console.log('Employee signup successful:', signUpData)
         setError('Please check your email for verification link')
         return
       }
@@ -141,13 +136,16 @@ export default function Login() {
       // Handle customer sign up
       if (isCustomerSignUp) {
         // Check if customer exists in the system
+        console.log('Checking if customer exists:', email)
         await checkCustomerEmail(email)
         
         if (!customerExists) {
+          console.error('Customer does not exist in system:', email)
           throw new Error('Your email is not in our system. Please contact GreenView Solutions to create an account.')
         }
         
-        const { error: signUpError } = await signUp({ 
+        console.log('Customer exists, attempting signup for:', email)
+        const { data: signUpData, error: signUpError } = await signUp({ 
           email, 
           password,
           options: {
@@ -156,23 +154,38 @@ export default function Login() {
             }
           }
         })
-        if (signUpError) throw signUpError
         
+        if (signUpError) {
+          console.error('Customer signup error:', signUpError)
+          throw signUpError
+        }
+        
+        console.log('Customer signup successful:', signUpData)
         setError('Please check your email for verification link')
         return
       }
 
       // Handle sign in
-      const { error: signInError } = await signIn({ email, password })
-      if (signInError) throw signInError
+      console.log('Attempting sign in for:', email)
+      const { data: signInData, error: signInError } = await signIn({ email, password })
+      
+      if (signInError) {
+        console.error('Sign in error:', signInError)
+        throw signInError
+      }
+      
+      console.log('Sign in successful:', signInData)
 
       // Redirect based on email domain
       if (validateEmployeeEmail(email)) {
+        console.log('Redirecting to employee dashboard')
         navigate('/employee-dashboard')
       } else {
+        console.log('Redirecting to customer dashboard')
         navigate('/customer-dashboard')
       }
     } catch (error) {
+      console.error('Form submission error:', error)
       setError(error.message)
     } finally {
       setLoading(false)

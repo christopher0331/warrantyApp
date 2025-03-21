@@ -11,47 +11,92 @@ export default function MagicLinkHandler() {
   useEffect(() => {
     const handleMagicLink = async () => {
       try {
-        // Get the hash fragment from the URL (contains the access token)
+        console.log('MagicLinkHandler activated, URL:', window.location.href);
+        
+        // Extract the token from the URL if present
+        const params = new URLSearchParams(window.location.search);
+        const accessToken = params.get('access_token');
+        const refreshToken = params.get('refresh_token');
         const hash = location.hash;
         
-        if (!hash) {
-          throw new Error('No authentication token found in URL');
-        }
-
-        // The hash includes the access token and other parameters
-        // We need to extract these and process them with Supabase
-        console.log('Processing magic link with hash:', hash);
+        // Log what we found for debugging
+        if (accessToken) console.log('Found access_token in query params');
+        if (refreshToken) console.log('Found refresh_token in query params');
+        if (hash) console.log('Found hash fragment:', hash);
         
-        // Let Supabase handle the token exchange
+        // If we have tokens in the URL, set them in the session
+        if (accessToken && refreshToken) {
+          console.log('Setting session with tokens from URL');
+          const { error: setSessionError } = await supabase.auth.setSession({
+            access_token: accessToken,
+            refresh_token: refreshToken
+          });
+          
+          if (setSessionError) {
+            console.error('Error setting session:', setSessionError);
+            throw setSessionError;
+          }
+        }
+        
+        // Get the current session
         const { data, error } = await supabase.auth.getSession();
+        console.log('Session data:', data);
         
         if (error) {
+          console.error('Session error:', error);
           throw error;
         }
         
         if (!data.session) {
-          // If there's no session yet, we need to exchange the token
-          // This happens when the user first clicks the magic link
-          await supabase.auth.getUser();
+          console.log('No session found, attempting to exchange token from hash');
           
-          // Check again for a session
-          const { data: refreshData, error: refreshError } = await supabase.auth.getSession();
-          
-          if (refreshError) {
-            throw refreshError;
-          }
-          
-          if (!refreshData.session) {
-            throw new Error('Failed to authenticate with the provided token');
+          // Try to handle the hash if present
+          if (hash && hash.includes('access_token')) {
+            // Let Supabase handle the hash
+            const result = await supabase.auth.getUser();
+            console.log('User result from hash:', result);
+            
+            // Check again for a session
+            const { data: refreshData, error: refreshError } = await supabase.auth.getSession();
+            console.log('Refreshed session data:', refreshData);
+            
+            if (refreshError) {
+              console.error('Refresh error:', refreshError);
+              throw refreshError;
+            }
+            
+            if (!refreshData.session) {
+              console.error('Still no session after processing hash');
+              throw new Error('Failed to authenticate with the provided token');
+            }
+          } else {
+            console.error('No authentication token found in URL');
+            throw new Error('No authentication token found in URL');
           }
         }
         
         // Successfully authenticated
         console.log('Magic link authentication successful');
         
+        // Get the current user
+        const { data: userData } = await supabase.auth.getUser();
+        console.log('Authenticated user:', userData);
+        
         // Determine where to redirect based on user email
-        const userEmail = data.session?.user?.email || '';
+        const userEmail = userData.user?.email || data.session?.user?.email || '';
+        console.log('User email for redirection:', userEmail);
+        
         const isEmployee = userEmail.endsWith('@greenviewsolutions.net') || userEmail.endsWith('@gvsco.net');
+        
+        // Store the user in local storage to ensure persistence
+        if (userData.user) {
+          localStorage.setItem('supabase.auth.token', JSON.stringify({
+            currentSession: data.session,
+            expiresAt: Math.floor(Date.now() / 1000) + 3600
+          }));
+        }
+        
+        console.log('Redirecting to', isEmployee ? 'employee dashboard' : 'customer dashboard');
         
         if (isEmployee) {
           navigate('/employee-dashboard');
