@@ -114,6 +114,29 @@ export default function MagicLinkHandler() {
             currentSession: data.session,
             expiresAt: Math.floor(Date.now() / 1000) + 3600
           }));
+          
+          // Check if the user has a password set
+          // If they signed in with a magic link and don't have a password,
+          // we should redirect them to set a password
+          const user = userData.user;
+          const hasPassword = user.identities?.some(identity => 
+            identity.provider === 'email' && identity.identity_data?.email_verified === true
+          );
+          
+          const isFirstLogin = !user.last_sign_in_at || 
+            (new Date(user.last_sign_in_at).getTime() === new Date(user.created_at).getTime());
+          
+          console.log('User has password:', hasPassword, 'Is first login:', isFirstLogin);
+          
+          // If this is the first login via magic link, redirect to set password
+          if (isFirstLogin) {
+            console.log('First login detected, redirecting to set password');
+            // Store the intended destination after password setup
+            localStorage.setItem('redirectAfterPasswordSetup', 
+              isEmployee ? '/employee-dashboard' : '/customer-dashboard');
+            navigate('/set-password');
+            return;
+          }
         }
         
         console.log('Redirecting to', isEmployee ? 'employee dashboard' : 'customer dashboard');
